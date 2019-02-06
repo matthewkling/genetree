@@ -1,24 +1,11 @@
 
+
 library(googledrive)
 library(googlesheets)
 library(tidyverse)
 
 
-setwd("E:/ppgdb/reformat_verification")
-
-folders <- drive_ls("Plant PopGen Project/formatted_datasets")
-
-sheet <- gs_title("Plant PopGen datasets")
-q <- gs_read(sheet, ws="reformatting") %>%
-      mutate(rownum = (1:nrow(.))+1) %>%
-      split(1:nrow(.))
-
-
-
-
-
-
-package <- function(cmp){
+package <- function(cmp, folders){
       ci <- paste0(cmp$'dataset ID', cmp$'component ID')
       folder <- folders[folders$name==ci,]
       if(nrow(folder)==0) folder <- folders[folders$name==sub(paste(letters, collapse="|"), "", ci),]
@@ -119,10 +106,10 @@ v_alignment <- function(cmp){
 }
 
 
-# write test results to google spreadsheet
-validate <- function(cmp){
-      #cmp <- q[[2]]
-      cmp <- package(cmp)
+# execute tests and write results to google spreadsheet
+validate <- function(cmp, folders, sheet){
+      
+      cmp <- package(cmp, folders=folders)
       
       for(fun in list(download_data,
                       v_script,
@@ -130,6 +117,7 @@ validate <- function(cmp){
                       v_populations,
                       v_genepop,
                       v_alignment)){
+            #message(deparse(substitute(fun)))
             cmpi <- try(fun(cmp))
             if(class(cmpi) == "try-error") break()
             cmp <- cmpi
@@ -141,18 +129,18 @@ validate <- function(cmp){
             e <- as.character(cmpi)
             e <- gsub("\\\n", "", e)
             v <- c(v, e)
+            v <- c(v, rep("", 6))[1:6]
       }
+      
+      v <- c(timestamp=as.character(Sys.time()), v)
       
       gs_edit_cells(sheet, "reformatting", 
                     input=v, 
-                    anchor=paste0("R", cmp$gs$rownum,
-                                  "C", which(names(cmp$gs)=="valid_download")),
+                    anchor=paste0("R", cmp$gs$rownum+1,
+                                  "C", which(names(cmp$gs)=="last_validated")),
                     byrow=T)
       
-      return(cmp)
+      unlink(cmp$folder$name, recursive=T)
+      
+      return(v)
 }
-
-
-#v <- lapply(q, validate)
-
-
